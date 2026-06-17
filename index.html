@@ -577,29 +577,104 @@ document.getElementById("previewTrack").addEventListener("scroll", function(e) {
     }
 });
 
-/* DEEP LINK HANDLERS FOR PH BANKING APP VARIATIONS */
+/* DEEP LINK HANDLERS WITH IOS FALLBACK SUPPORT */
 function openApp(bank){
+    const appKey = String(bank || "").toLowerCase();
+
     const links = {
-        gcash: "gcash://", 
-        maya: "paymaya://", 
-        bpi: "Bpi://",
-        unionbank: "unionbank://",
-        maribank: "maribank://",
-        tonik: "tonik://",
-        gotyme: "GoTyme://",
-        bdo: "BDO://"
+        gcash: {
+            deepLink: "gcash://",
+            fallback: "https://apps.apple.com/ph/app/gcash/id520020791"
+        },
+        maya: {
+            deepLink: "paymaya://",
+            fallback: "https://apps.apple.com/ph/app/maya-savings-loans-cards/id991673877"
+        },
+
+        /*
+          These bank deep links are not confirmed publicly.
+          Keep deepLink as null unless you have tested the exact scheme on an iPhone.
+          The fallback will still take the user to the correct App Store/search page.
+        */
+        bpi: {
+            deepLink: null,
+            fallback: "https://apps.apple.com/ph/app/bpi/id6443950982"
+        },
+        unionbank: {
+            deepLink: null,
+            fallback: "https://apps.apple.com/ph/search?term=UnionBank%20Philippines"
+        },
+        maribank: {
+            deepLink: null,
+            fallback: "https://apps.apple.com/ph/search?term=MariBank"
+        },
+        tonik: {
+            deepLink: null,
+            fallback: "https://apps.apple.com/ph/search?term=Tonik%20Philippines"
+        },
+        gotyme: {
+            deepLink: "GoTyme://",
+            fallback: "https://apps.apple.com/ph/search?term=GoTyme%20Bank"
+        },
+        bdo: {
+            deepLink: null,
+            fallback: "https://apps.apple.com/ph/search?term=BDO%20Online"
+        }
     };
 
-    const url = links[bank.toLowerCase()];
-    if(!url){
-        showMessage("Application deep link routing configuration missing");
+    const app = links[appKey];
+
+    if(!app){
+        showMessage("App routing configuration missing.");
         return;
     }
 
-    window.location.href = url;
-    setTimeout(()=>{
-        showMessage("Redirected! Open your app's QR reader scan window from your gallery imports.");
-    }, 600);
+    if(!app.deepLink){
+        showMessage("No confirmed deep link. Opening App Store fallback.");
+        window.location.href = app.fallback;
+        return;
+    }
+
+    let didLeavePage = false;
+    let fallbackTimer = null;
+
+    const clearFallback = () => {
+        didLeavePage = true;
+        if(fallbackTimer) clearTimeout(fallbackTimer);
+    };
+
+    /*
+      If iOS successfully opens the app, Safari usually becomes hidden or fires pagehide.
+      In that case, cancel the fallback so the user is not sent to the App Store.
+    */
+    const onVisibilityChange = () => {
+        if(document.hidden) clearFallback();
+    };
+
+    const onPageHide = () => {
+        clearFallback();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange, { once: true });
+    window.addEventListener("pagehide", onPageHide, { once: true });
+
+    showMessage("Opening app...");
+
+    /*
+      Must be triggered by a real tap/click for best iPhone behavior.
+      This button click qualifies.
+    */
+    window.location.href = app.deepLink;
+
+    fallbackTimer = setTimeout(() => {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        window.removeEventListener("pagehide", onPageHide);
+
+        if(!didLeavePage){
+            showMessage("App did not open. Redirecting to App Store.");
+            window.location.href = app.fallback;
+        }
+    }, 1800);
 }
 
 function showMessage(msg){
